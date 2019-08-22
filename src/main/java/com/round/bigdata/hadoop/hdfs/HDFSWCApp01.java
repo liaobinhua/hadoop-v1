@@ -5,12 +5,10 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.Map;
+import java.util.Set;
+
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocatedFileStatus;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.fs.*;
 
 /**
  * author: binhualiao
@@ -28,6 +26,9 @@ public class HDFSWCApp01 {
 
     RemoteIterator<LocatedFileStatus> iterator = fileSystem.listFiles(input, false);
 
+    CaseIgnorWordCountMapper mapper = new CaseIgnorWordCountMapper();
+    Context context = new Context();
+
     while (iterator.hasNext()) {
       LocatedFileStatus file = iterator.next();
       FSDataInputStream in = fileSystem.open(file.getPath());
@@ -37,14 +38,25 @@ public class HDFSWCApp01 {
       while ((line = reader.readLine()) != null) {
         // 2. 处理 词频统计
         //ToDo 将计算后的结果写到Cache
+        mapper.map(line, context);
       }
+      reader.close();
+      in.close();
     }
 
     // 3. 将处理的结果存起来 使用 Map
-
+    Map<Object, Object> contextMap = context.getCacheMap();
 
     //4.将结果存到HDFS
     Path output = new Path("/hdfsapi/output");
-
+    FSDataOutputStream out = fileSystem.create(new Path(output, new Path("wordN.out")));
+    Set<Map.Entry<Object, Object>> entries = contextMap.entrySet();
+    for (Map.Entry<Object, Object> entry : entries) {
+      out.write((entry.getKey().toString() + "\t"
+              + entry.getValue().toString() + "\n").getBytes());
+    }
+    out.close();
+    fileSystem.close();
+    System.out.println("HDFS API词频统计完成!!!");
   }
 }
